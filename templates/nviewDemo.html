@@ -1,0 +1,146 @@
+{% extends "_base_core.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block page_title %}ATLAS Nightly Builds Summary{% endblock %}
+{% block title %}PanDA monitor{% endblock %}
+{% block subtitle %}Monitoring for ASCIG on BigPanDA{% endblock %}
+
+{% block css_page_library %}
+    <!-- DataTables CSS for modern table styling -->
+    <link rel="stylesheet" href="{% static "js/datatables/DataTables-1.10.13/css/dataTables.foundation.css" %}">
+{% endblock %}
+{% block js_head_page_library %}
+    <!-- DataTables JS libraries for interactive tables -->
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/jquery.dataTables.js' %}"></script>
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/dataTables.foundation.js' %}"></script>
+    <script src="{% static 'js/datatables/RowGroup-1.1.1/js/rowGroup.dataTables.js' %}"></script>
+{% endblock %}
+
+{% block body %}
+
+<div>
+
+<div id="hjk">
+    <p><h3>ATLAS Nightly Builds Summary</h3></p>
+    <h4>for branch {{ nightly }}</h4>
+</div>
+
+<div id="notes"><p>
+<ul>
+    <li><a href="{% url 'BuildGlobal' %}">Link to global system page</a></li>
+    <li><a href="https://atlas-sw-infrastructure.docs.cern.ch/CI_Nightlies_Beginners_Guide">CI and Nightly Systems: A Beginner's Guide</a></li>
+    <li><a href="https://twiki.cern.ch/twiki/bin/viewauth/AtlasComputing/NightliesCIInfo">CI and Nightly Systems: Features and Policies</a></li>
+    <li> For the <a href="https://atlas-project-art.web.cern.ch/atlas-project-art/doc/ARTManual.html">ATLAS Release Tester (ART)</a> results, the color coding is as follows: blue for active, green for succeeded, brown-red for finished with problems, and red for failed number of tests</li>
+    <li> <a href="#headers_note">Explanations of the table headers</a> can be found at the bottom of the page</li>
+</ul></p>
+</div>
+
+<div id="details">
+<p style="font-family:Times New Roman; font-size: 20px;">
+These nightly jobs build <b>{{ project }}</b> on <b>{{ platform }}</b>
+</p>
+</div>
+
+<!-- Nightly Builds Summary Table -->
+<table id="NSummary" class="stripe">
+     <thead>
+                <th>Release</th>
+                <th>Job time stamp</th>
+                <th>git clone</th>
+                <th>Extern.<BR>build</th>
+                <th>CMake<BR>config</th>
+                <th>Build time</th>
+                <th>Comp.<BR>errors<BR>(w/warn)</th>
+                <th>Install<BR>(CPack)</th>
+                <th>Test time</th>
+                <th>CTest<BR>errors<BR>(w/warn)<BR>timeouts</th>
+                <th>ART<BR>LOCAL</th>
+                <th>ART<BR>GRID</th>
+                <th>CVMFS<BR>(on server)</th>
+                <th>CVMFS<BR>(on client)</th>
+                <th>Host</th>
+     </thead>
+     <tbody></tbody>
+</table>
+
+</div>
+{% endblock %}
+
+{% block help %}
+<div class="card bp-container-simple help" id="headers_note">
+<div class="card-divider"><p>ATLAS Nightly Builds Summary Help</p></div>
+<div class="card-section">
+  <b>Explanations of the table headers</b>
+<ul>
+    <li>RELEASE - Name of the release, reflecting the GitLab MR number and job date</li>
+    <li>JOB TIME STAMP - Time when the job information was submitted to the database</li>
+    <li>GIT CLONE - Status of the git clone stage, linked to the log</li>
+    <li>EXTERN. BUILD - Status of the externals build stage, linked to the log</li>
+    <li>CMAKE CONFIG - Status of the CMake configuration stage, linked to the log</li>
+    <li>BUILD TIME - Time when the compilation stage was completed</li>
+    <li>COMPILATION ERRORS (w/warnings) - Shows the number of packages with compilation errors. In parentheses, it includes both errors and warnings</li>
+    <li>INSTALL (CPack) - Status of the CPack stage, linked to the log</li>
+    <li>TEST TIME - Time when the test stage was completed</li>
+    <li>CTEST ERRORS (w/warnings) timeouts - Indicates the number of local tests with errors.
+    The value in parentheses represents the count of tests that have both errors and warnings.
+    The third value represents the number of timed-out tests</li>
+    <li>ART LOCAL - Displays the number of ART tests run on a local CERN cluster.
+    Color-coded numbers represent test statuses: green for succeeded, brown-red for finished with Athena succeeded and sub-steps failed, and red for failed.
+    Follow the result links for details</li>
+    <li>ART GRID - Displays the number of ART tests run on the Grid.
+    Color-coded numbers represent test statuses: blue for active, green for succeeded, brown-red for finished with Athena succeeded and sub-steps failed, and red for failed.
+    Follow the result links for details</li>
+    <li>CVMFS (on server) - Shows the date of the CVMFS publication on the server machine (it takes time to make it available on client machines)</li>
+    <li>CVMFS (on client) - Shows the publication date on CVMFS, indicating when it becomes available to client machines</li>
+    <li>HOST - Name of the build node where all stages were run</li>
+</ul>
+</div>
+
+</div>
+{% endblock %}
+
+{% block js_body_page %}
+<script nonce={{request.csp_nonce}}>
+
+// Parse nightly summary data for DataTables
+var json=JSON.stringify({{ rows_s | safe }});
+
+var ndisplayTable = $('#NSummary').dataTable({
+"order": [[1, 'desc'],[5, 'desc']],
+"pageLength": 100,
+"lengthMenu": [[-1, 25, 50, 100], ["All", 25, 50, 100]],
+"data": JSON.parse(json),
+"rowCallback": function( row, data, displayIndex ) {
+                 // Custom row coloring based on error counts
+                 var v0=($('td:eq(0)',row).text().split("-")[1]);
+                 var v0I = parseInt(v0, 10);
+                 var v0F = 0.5;
+                 if ( v0I > 20000 && v0I < 30000 ) { v0F = (v0I - 20000)/11000;}
+                 else if ( v0I >= 30000 && v0I < 40000 ) { v0F = (v0I - 30000)/11000;}
+                 var hexV0 = '#F'+Math.floor(v0F*1048575).toString(16);
+                 $('td:eq(0)', row).css("background-color", hexV0).css("border", "1px solid rgb(197, 219, 236)");
+                 var v8=($('td:eq(6)',row).text().split(" "))[0];
+                 var v10=($('td:eq(9)',row).text().split(" "))[0];
+                 var v102=($('td:eq(9)',row).text().split(" "))[2];
+                 if ( /\D/.test(v102) ) { v102 = 0; }
+                 if ( v8 > 6 ) { $('td:eq(6)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( v8 > 0 ) { $('td:eq(6)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( /\D/.test(v8) )  { $('td:eq(6)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+                 else { $('td:eq(6)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+                 if ( v10 > 0 && v10 <=5 && v102 >= 0 && v102 <= 3  ) { $('td:eq(9)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( v10 == 0 && v102 > 0 && v102 <= 3 ) { $('td:eq(9)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( v10 > 5 || v102 > 3 ) { $('td:eq(9)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( ! /\D/.test(v10) )  { $('td:eq(9)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+                 else { $('td:eq(9)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+
+/*
+                 if (v9 >= 0) {
+                 $('td:eq(9)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");
+                 };
+*/
+},
+});
+
+</script>
+{% endblock %}

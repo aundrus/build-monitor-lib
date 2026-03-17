@@ -1,0 +1,165 @@
+{% extends "_base_core.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block page_title %}ATLAS CI Builds Summary{% endblock %}
+{% block title %}PanDA monitor{% endblock %}
+{% block subtitle %}Monitoring for ASCIG on BigPanDA{% endblock %}
+
+{% block css_page_library %}
+    <!-- DataTables CSS for modern table styling -->
+    <link rel="stylesheet" href="{% static "js/datatables/DataTables-1.10.13/css/dataTables.foundation.css" %}">
+{% endblock %}
+{% block js_head_page_library %}
+    <!-- DataTables JS libraries for interactive tables -->
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/jquery.dataTables.js' %}"></script>
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/dataTables.foundation.js' %}"></script>
+    <script src="{% static 'js/datatables/RowGroup-1.1.1/js/rowGroup.dataTables.js' %}"></script>
+{% endblock %}
+
+{% block body %}
+
+<div>
+
+<div id="hjk">
+    <p><h3>ATLAS CI Builds Summary</h3></p>
+</div>
+
+<div id="notes">
+    <p><ul>
+    <li><a href="{% url 'BuildGlobal' %}">Link to global system page</a></li>
+    <li><a href="https://atlas-sw-infrastructure.docs.cern.ch/CI_Nightlies_Beginners_Guide">CI and Nightly Systems: A Beginner's Guide</a></li>
+    <li><a href="https://twiki.cern.ch/twiki/bin/viewauth/AtlasComputing/NightliesCIInfo">CI and Nightly Systems: Features and Policies</a></li>
+    <li><a href="http://alibrari.web.cern.ch/alibrari/mr-problems-bp.html">Merge Request Problems Display</a></li>
+    <li><a href="https://atlas-sw-build-logs.web.cern.ch/ciwww/plots">CI Analytics (build and test time distributions)</a></li>
+    <li><a href="#headers_note">Explanations of the table headers</a> can be found at the bottom of the page</li>
+    </ul></p>
+</div>
+
+<!-- CI Builds Summary Table -->
+<table id="CISummary" class="stripe">
+     <thead>
+                <th>Release</th>
+                <th>Platform</th>
+                <th>Project</th>
+                <th>git branch<BR>(link to MR)</th>
+                <th>Job time stamp</th>
+                <th>git clone</th>
+                <th>Externals<BR>build</th>
+                <th>CMake<BR>config</th>
+                <th>Build time</th>
+                <th>Comp. errors<BR>(w/warnings)</th>
+                <th>Test time</th>
+                <th>CI tests errors<BR>(w/warnings)<BR>timeouts</th>
+                <th>Host</th>
+     </thead>
+     <tbody></tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block help %}
+<div class="card bp-container-simple help" id="headers_note">
+<div class="card-divider"><p>ATLAS CI Builds Summary Help</p></div>
+<div class="card-section">
+  <b>Explanations of the table headers</b>
+<ul>
+    <li>RELEASE - Name of the release, reflecting the GitLab MR number and job date</li>
+    <li>PLATFORM - Name of the platform</li>
+    <li>PROJECT - Name of the project. Up to 6 projects can be build in a single job</li>
+    <li>GIT BRANCH (link to MR) - Name of the Git branch for which the MR was created, linked to the corresponding GitLab MR</li>
+    <li>JOB TIME STAMP - Time when the job information was submitted to the database</li>
+    <li>GIT CLONE - Status of the git clone stage, linked to the log</li>
+    <li>EXTERNALS BUILD - Status of the externals build stage, linked to the log</li>
+    <li>CMAKE CONFIG - Status of the CMake configuration stage, linked to the log</li>
+    <li>BUILD TIME - Time when the compilation stage was completed</li>
+    <li>COMPILATION ERRORS (w/warnings) - Shows the number of packages with compilation errors. In parentheses, it includes both errors and warnings</li>
+    <li>TEST TIME - Time when the test stage was completed</li>
+    <li>CI TEST ERRORS (w/warnings) timeouts - Indicates the number of local tests with errors.
+    The value in parentheses represents the count of tests that have both errors and warnings.
+    The third value represents the number of timed-out tests</li>
+    <li>HOST - Name of the build node where all stages were run</li>
+</ul>
+</div>
+
+</div>
+{% endblock %}
+
+{% block js_body_page %}
+<script nonce={{request.csp_nonce}}>
+
+// Parse CI summary data for DataTables
+var json=JSON.stringify({{ rows_s | safe }});
+
+var cidisplayTable = $('#CISummary').dataTable({
+"order": [[4, 'desc']],
+"pageLength": 100,
+"lengthMenu": [[-1, 25, 50, 100], ["All", 25, 50, 100]],
+"data": JSON.parse(json),
+"rowCallback": function( row, data, displayIndex ) {
+                 // Custom row coloring based on job number
+                 var v0=($('td:eq(0)',row).text().split("-")[1]);
+                 var v0I = parseInt(v0, 10);
+                 function hslToHex(h, s, l) {
+                     l /= 100;
+                     const a = s * Math.min(l, 1 - l) / 100;
+                     const f = n => {
+                         const k = (n + h / 30) % 12;
+                         const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                         return Math.round(255 * color).toString(16).padStart(2, '0');   // convert to Hex and prefix "0" if needed
+                     };
+                 return `#${f(0)}${f(8)}${f(4)}`;
+                 }
+                 var v_start = v0I - Math.floor(v0I/100000)*100000;
+                 var v_1000 = v_start - Math.floor(v_start/1000)*1000;
+                 var digit_3 = Math.floor(v_1000/100); var v_100 = v_1000 - digit_3*100;
+                 var digit_2 = Math.floor(v_100/10); var digit_1 = v_100 - digit_2*10;
+                 var greige='#CCC3B9'; var g_r=204; var g_g=195; var g_b=185; var g_h=32; var g_s=16; var g_l=76;
+                 var corn_blue='#6495ED'; var c_r=100; var c_g=149; var c_b=219; var c_h=219; var c_s=79; var c_l=66;
+                 var purple='#9678d8'; var p_r=149; var p_g=120; var p_b=215; var p_h=258; var p_s=64; var p_l=66;
+                 var yellow='#faca0a'; var y_r=250; var y_g=202; var y_b=10; var y_h=48; var y_s=96; var y_l=51;
+                 var prim_h = p_h; var prim_s = p_s; var prim_l = p_l;
+                 var seco_h = g_h; var seco_s = g_s; var seco_l = g_l;
+                 var acce_h = prim_h - 210; var acce_s = 95; var acce_l = 50;
+                 var bckg_h = prim_h; var bckg_s = prim_s; var bckg_l = prim_l;
+                 if ( digit_1 >= 0 &&  digit_1 <= 5 ) {
+                     bckg_h = prim_h + (-2 + digit_1) * 20 + (-3 + digit_2) * 5;
+                     bckg_s = prim_s + (-2 + digit_3) * 3;
+                     bckg_l = prim_l + 10 + (-3 + digit_2) * 2;
+                 } else if (digit_1 >= 6 &&  digit_1 <= 8) {
+                     bckg_h = seco_h + (-7 + digit_3) * 15;
+                     bckg_s = seco_s + (-2 + digit_2)*5;
+                     bckg_l = seco_l + 14 + (-7 + digit_1)*7;
+                } else {
+                     bckg_h = acce_h + (-5 + digit_2)*5;
+                     bckg_s = acce_s - 10 + (-7 + digit_3)*3;
+                     bckg_l = acce_l + 15 + (-1 + digit_2)*2;
+                 }
+                 if ( bckg_h < 0 ) { bckg_h = bckg_h + 360; }; if ( bckg_h > 360 ) { bckg_h = bckg_h - 360; };
+                 if ( bckg_s < 5 ) { bckg_s = 5; }; if ( bckg_s > 95 ) { bckg_s = 95; };
+                 if ( bckg_l < 5 ) { bckg_l = 5; }; if ( bckg_l > 95 ) { bckg_l = 95; };
+                 var hexV0 = hslToHex(bckg_h,bckg_s,bckg_l);
+                 $('td:eq(0)', row).css("background-color", hexV0).css("border", "1px solid rgb(197, 219, 236)");
+                 var v9=($('td:eq(9)',row).text().split(" "))[0];
+                 var v11=($('td:eq(11)',row).text().split(" "))[0];
+                 var v112=($('td:eq(11)',row).text().split(" "))[2];
+                 if ( /\D/.test(v112) ) { v112 = 0; }
+                 if ( v9 > 6 ) { $('td:eq(9)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( v9 > 0 ) { $('td:eq(9)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( /\s/.test(v9) )  { $('td:eq(9)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+                 else { $('td:eq(9)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+                 if ( v11 > 0 && v11 <= 1 && v112 == 0 ) { $('td:eq(11)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( v11 > 1 || v112 > 0 ) { $('td:eq(11)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+                 else if ( ! /\D/.test(v11) )  { $('td:eq(11)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+                 else { $('td:eq(11)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+
+/*
+                 if (v9 >= 0) {
+                 $('td:eq(9)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");
+                 };
+*/
+},
+});
+
+</script>
+{% endblock %}

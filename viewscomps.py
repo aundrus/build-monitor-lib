@@ -1,0 +1,191 @@
+import json
+import re
+
+# Import Django and custom utilities for component view
+from django.http import JsonResponse
+import core.buildmonitor.constants as const
+from core.libs.DateEncoder import DateEncoder
+from core.oauth.utils import login_customrequired
+from core.utils import is_json_request
+from core.views import initRequest
+from django.db import connection
+from django.shortcuts import render
+
+
+@login_customrequired
+def compviewDemo(request):
+    """
+    Component Results Summary view.
+    Handles request validation, query parameters, DB queries, and result formatting.
+    Returns either JSON or HTML response based on request type.
+    Args:
+        request: Django request object
+    Returns:
+        JsonResponse or rendered HTML page
+    """
+    valid, response = initRequest(request)
+    if not valid:
+        return response
+    # Extract parameters from session or use defaults
+    if "nightly" in request.session["requestParams"] and len(request.session["requestParams"]["nightly"]) < 100:
+        nname = request.session["requestParams"]["nightly"]
+    else:
+        nname = "MR-CI-builds"
+    if "rel" in request.session["requestParams"] and len(request.session["requestParams"]["rel"]) < 100:
+        relname = request.session["requestParams"]["rel"]
+    else:
+        relname = "unknown"
+    if "ar" in request.session["requestParams"] and len(request.session["requestParams"]["ar"]) < 100:
+        arname = request.session["requestParams"]["ar"]
+    else:
+        arname = "x86_64-centos7-gcc11-opt"
+    if "proj" in request.session["requestParams"] and len(request.session["requestParams"]["proj"]) < 100:
+        pjname = request.session["requestParams"]["proj"]
+    else:
+        pjname = "all"
+
+    is_json_output = is_json_request(request)
+    output_dict = {'nightly': nname, 'platform': arname, 'proj': pjname, 'data': {}}
+
+    # Initialize DB cursor
+    new_cur = connection.cursor()
+
+    # Icon HTML snippets for status indicators
+    check_icon = '<div class="ui-widget ui-state-check" style="display:inline-block;"> <span style="display:inline-block;" title="OK" class="DataTables_sort_icon css_right ui-icon ui-icon-circle-check">ICON33</span></div>'
+    clock_icon = '<div class="ui-widget ui-state-active" style="display:inline-block;background:#bc0000;"> <span style="display:inline-block;" title="UPDATING" class="DataTables_sort_icon css_right ui-icon ui-icon-clock">ICON39</span></div>'
+    minorwarn_icon = '<div class="ui-widget ui-state-highlight" style="display:inline-block;"> <span style="display:inline-block;" title="MINOR WARNING" class="DataTables_sort_icon css_right ui-icon ui-icon-alert">ICON34</span></div>'
+    warn_icon = '<div class="ui-widget ui-state-error" style="display:inline-block;"> <span style="display:inline-block;" title="WARNING" class="DataTables_sort_icon css_right ui-icon ui-icon-lightbulb">ICON35</span></div>'
+    error_icon = '<div class="ui-widget ui-state-error" style="display:inline-block;"> <span style="display:inline-block;" title="ERROR" class="DataTables_sort_icon css_right ui-icon ui-icon-circle-close">ICON36</span></div>'
+    help_icon = '<span style="display:inline-block;" title="HELP" class="DataTables_sort_icon css_right ui-icon ui-icon-help">ICONH</span>'
+    clip_icon = '<span style="display:inline-block; float: left; margin-right: .9em;" title="CLIP" class="DataTables_sort_icon ui-icon ui-icon-clipboard">ICONCL</span>'
+    person_icon = '<span style="display:inline-block; float: left; margin-right: .9em;" title="MASTER ROLE" class="DataTables_sort_icon ui-icon ui-icon-person">ICONP</span>'
+    person_icon1 = '<span style="display:inline-block;" title="MASTER ROLE" class="DataTables_sort_icon ui-icon ui-icon-person">ICONP1</span>'
+    mailyes_icon = '<span style="cursor:pointer; display:inline-block; " title="MAIL ENABLED" class="ui-icon ui-icon-mail-closed"> ICON1</span>'
+    radiooff_icon = '<div class="ui-widget ui-state-default" style="display:inline-block";> <span title="N/A" class="ui-icon ui-icon-radio-off">ICONRO</span></div>'
+    majorwarn_icon = warn_icon
+    # Map status codes to icons
+    di_res = {
+        "-1": clock_icon,
+        "N/A": radiooff_icon,
+        "0": check_icon,
+        "1": minorwarn_icon,
+        "2": majorwarn_icon,
+        "3": error_icon,
+        "10": clock_icon,
+    }
+    asdd = "0"
+    if asdd == "0":
+        query = (
+            "select * from (select to_char(j.jid),j.arch||'-'||os||'-'||comp||'-'||opt as AA, j.tstamp, n.nname as nname, r.name as RNAME, s.hname, j.buildarea, j.copyarea, r.relnstamp, j.gitbr, n.ntype from nightlies@ATLR.CERN.CH n inner join ( releases@ATLR.CERN.CH r inner join ( jobs@ATLR.CERN.CH j inner join jobstat@ATLR.CERN.CH s on j.jid=s.jid ) on r.nid=j.nid and r.relid=j.relid ) on n.nid=r.nid where nname ='%s' and j.tstamp between sysdate-11+1/24 and sysdate order by j.tstamp asc) where RNAME ='%s' and AA='%s'"
+            % (nname, relname, arname)
+        )
+        #     print("Q ",query)
+        new_cur.execute(query)
+        reslt = new_cur.fetchall()
+        reslt1 = {}
+        host = "N/A"
+        buildareaSS = "N/A"
+        copyareaSS = "N/A"
+        gitbrSS = "N/A"
+        ntype = "N/A"
+        relnstamp = ""
+        lllr = len(reslt)
+        if lllr > 0:
+            rowmax = reslt[-1]
+            host = re.split("\\.", rowmax[5])[0]
+            jid_top = rowmax[0]
+            buildareaSS = rowmax[6]
+            copyareaSS = rowmax[7]
+            relnstamp = rowmax[8]
+            ntype = rowmax[10]
+            if gitbrSS is not None:
+                gitbrSS = rowmax[9]
+            tabname = "compresults"
+            if pjname == "*" or re.match("^all$", pjname, re.IGNORECASE):
+                query1 = (
+                    "select res,projname,nameln,contname,corder from "
+                    + tabname
+                    + "@ATLR.CERN.CH natural join jobstat@ATLR.CERN.CH natural join projects@ATLR.CERN.CH \
+            natural join packages@ATLR.CERN.CH where jid ='%s'"
+                    % jid_top
+                )
+            else:
+                query1 = (
+                    "select res,projname,nameln,contname,corder from "
+                    + tabname
+                    + "@ATLR.CERN.CH natural join jobstat@ATLR.CERN.CH natural join projects@ATLR.CERN.CH \
+            natural join packages@ATLR.CERN.CH where jid ='%s' and projname ='%s'"
+                    % (jid_top, pjname)
+                )
+            new_cur.execute(query1)
+            reslt1 = new_cur.fetchall()
+        relextend = relname
+        if re.search("ATN", nname):
+            relextend = relnstamp + "(" + relname + ")"
+        if re.search("CI", nname):
+            sComm = "git branch " + gitbrSS
+            cmmnt = 'ATLAS CI %s, release %s, platform %s (on %s)<BR><span style="font-size:  smaller">%s</span>' % (
+                nname,
+                relextend,
+                arname,
+                host,
+                sComm,
+            )
+        else:
+            cmmnt = "ATLAS nightly %s, release %s, platform %s, project %s (on %s)" % (
+                nname,
+                relextend,
+                arname,
+                pjname,
+                host,
+            )
+        #  HEADERS
+        #  1. RES
+        #  2. PROJECT
+        #  3. Package
+        #  4. Container
+        i = 0
+        rows_s = []
+        for row in reslt1:
+            i += 1
+            if i > 10000:
+                break
+            result = row[0]
+            proj = row[1]
+            nameln1 = row[2]
+            container = row[3]
+            corder = row[4]
+            i_result = di_res.get(str(result), str(result))
+            if i_result is None or i_result == "None":
+                i_result = radiooff_icon
+
+            if not is_json_output:
+                rows_s.append([i_result, proj, nameln1, container])
+            else:
+                match = re.search(r'<a\s+href="([^"]+)">([^<]+)</a>', nameln1)
+                if match:
+                    link_log = match.group(1)
+                    package = match.group(2)
+                else:
+                    link_log = "N/A"
+                    package = "N/A"
+                output_dict['data'][package] = {
+                    'result': str(result),
+                    'package': package,
+                    'link_log': link_log,
+                    'container': container,
+                }
+
+    if not is_json_output:
+        data = {
+            "nightly": nname,
+            "rel": relname,
+            "ar": arname,
+            "proj": pjname,
+            "viewParams": request.session["viewParams"],
+            "rows_s": json.dumps(rows_s, cls=DateEncoder),
+        }
+        return render(request, "compviewDemo.html", data, content_type="text/html")
+    else:
+        return JsonResponse(output_dict)
+

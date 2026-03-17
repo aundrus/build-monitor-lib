@@ -1,0 +1,120 @@
+{% extends "_base_core.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block page_title %}ATLAS Nightlies and CI Global Page{% endblock %}
+{% block title %}PanDA monitor{% endblock %}
+{% block subtitle %}Monitoring for ASCIG on BigPanDA{% endblock %}
+
+{% block css_page_library %}
+    <!-- DataTables CSS for modern table styling -->
+    <link rel="stylesheet" href="{% static "js/datatables/DataTables-1.10.13/css/dataTables.foundation.css" %}">
+{% endblock %}
+{% block js_head_page_library %}
+    <!-- DataTables JS libraries for interactive tables -->
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/jquery.dataTables.js' %}"></script>
+    <script src="{% static 'js/datatables/DataTables-1.10.13/js/dataTables.foundation.js' %}"></script>
+    <script src="{% static 'js/datatables/RowGroup-1.1.1/js/rowGroup.dataTables.js' %}"></script>
+{% endblock %}
+
+{% block body %}
+
+<div>
+
+<div id="hjk">
+    <p><h3>ATLAS Nightlies and CI Global Page</h3></p>
+</div>
+
+<div id="note1"><p>
+<ul>
+    <li><a href="https://atlas-sw-infrastructure.docs.cern.ch/CI_Nightlies_Beginners_Guide">CI and Nightly Systems: A Beginner's Guide</a></li>
+    <li><a href="https://twiki.cern.ch/twiki/bin/viewauth/AtlasComputing/NightliesCIInfo">CI and Nightly Systems: Features and Policies</a></li>
+    <li> For the <a href="https://atlas-project-art.web.cern.ch/atlas-project-art/doc/ARTManual.html">ATLAS Release Tester (ART)</a> results, the color coding is as follows: blue for active, green for succeeded, brown-red for finished with problems, and red for failed number of tests</li>
+    <li> <a href="#headers_note">Explanations of the table headers</a> can be found at the bottom of the page</li>
+</ul></p>
+</div>
+
+<!-- Global Nightlies and CI Table -->
+<table id="firstGlobalExample" class="stripe">
+  <thead>
+    <th>Nightly Group</th>
+    <th>Branch</th>
+    <th>Recent<BR>Release</th>
+    <th>Build time</th>
+    <th>Compilation errors<BR>(w/warnings)</th>
+    <th>CTest (or CI)<BR>test errors<BR>(w/warnings)<BR>timeouts</th>
+    <th>ART<BR>LOCAL</th>
+    <th>ART<BR>GRID</th>
+    <th>CVMFS<BR>(on client)</th>
+    <th>ORDER string</th>
+  </thead>
+  <tbody></tbody>
+</table>
+{% endblock %}
+
+{% block help %}
+<div class="card bp-container-simple help" id="headers_note">
+<div class="card-divider"><p>ATLAS Nightlies and CI Global Page Help</p></div>
+<div class="card-section">
+  <b>Explanations of the table headers</b>
+  <ul>
+      <li>NIGHTLY GROUP - Clusters nightly branches with similar purposes. The CI group is dedicated for CI builds</li>
+      <li>BRANCH - Names of nightly branches which encode the Git branch, project name, and platform</li>
+      <li>RECENT RELEASE - Name of the latest release built, reflecting the job date</li>
+      <li>BUILD TIME - Time when the build was completed</li>
+      <li>COMPILATION ERRORS (w/warnings) - Shows the number of packages with compilation errors. In parentheses, it includes both errors and warnings</li>
+      <li>CTEST (or CI) TEST ERRORS (w/warnings) timeouts - Indicates the number of local tests with errors.
+      The value in parentheses represents the count of tests that have both errors and warnings.
+      The third value represents the number of timed-out tests.
+      This includes unit test results for nightly builds. For CI tests, it also includes local integration tests. ART tests are excluded</li>
+      <li>ART LOCAL - Displays the number of ART tests run on a local CERN cluster.
+      Color-coded numbers represent test statuses: green for succeeded, brown-red for finished with Athena succeeded and sub-steps failed, and red for failed.
+      Follow the result links for details</li>
+      <li>ART GRID - Displays the number of ART tests run on the Grid.
+      Color-coded numbers represent test statuses: blue for active, green for succeeded, brown-red for finished with Athena succeeded and sub-steps failed, and red for failed.
+      Follow the result links for details</li>
+      <li>CVMFS (on client) - Shows the publication date on CVMFS, indicating when it becomes available to client machines</li>
+  </ul>
+  </div>
+</div>
+{% endblock %}
+
+{% block js_body_page %}
+<script nonce={{request.csp_nonce}}>
+
+// Parse global summary data for DataTables
+var json=JSON.stringify({{ reslt3 | safe }});
+
+var globaldisplayTable = $('#firstGlobalExample').dataTable({
+"order": [[9, 'asc'], [1, 'asc']],
+"pageLength": 100,
+"lengthMenu": [[-1, 25, 50, 100], ["All", 25, 50, 100]],
+"data": JSON.parse(json),
+
+"columnDefs": [
+       {
+                "targets": [ 9 ],
+                "visible": false,
+                "searchable": false
+       }],
+"rowCallback": function( row, data, displayIndex ) {
+  // Custom row coloring based on error counts
+  var v4=($('td:eq(4)',row).text().split(" "))[0];
+  var v5=($('td:eq(5)',row).text().split(" "))[0];
+  var v52=($('td:eq(5)',row).text().split(" "))[2];
+  if ( /\D/.test(v52) ) { v52 = 0; }
+  if ( v4 > 6 ) { $('td:eq(4)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( v4 > 0 ) { $('td:eq(4)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( /\s/.test(v4) )  { $('td:eq(4)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( ! /\D/.test(v4) ) { $('td:eq(4)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+  else { $('td:eq(4)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+  if ( v5 > 0 && v5 <= 5 && v52 >= 0 && v52 <= 3 ) { $('td:eq(5)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( v5 == 0 && v52 > 0 && v52 <= 3 ) { $('td:eq(5)', row).css("background-color", "#FFFF99").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( v5 > 5 || v52 > 3 ) { $('td:eq(5)', row).css("background-color", "#FF9933").css("border", "1px solid rgb(197, 219, 236)");}
+  else if ( ! /\D/.test(v5) )  { $('td:eq(5)', row).css("background-color", "#66FF33").css("border", "1px solid rgb(197, 219, 236)");}
+  else { $('td:eq(5)', row).css("background-color", "#FFFFFF").css("border", "1px solid rgb(197, 219, 236)");}
+},
+});
+
+</script>
+{% endblock %}
